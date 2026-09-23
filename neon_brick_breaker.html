@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>네온 아케이드 벽돌깨기</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        arcade: {
+                            900: '#0f0c1b',
+                            800: '#1a103c',
+                            700: '#2d1b69',
+                            accent: '#00ffcc',
+                            pink: '#ff007f',
+                            purple: '#9d00ff'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at center, #1a103c 0%, #090514 100%);
+            color: #ffffff;
+            user-select: none;
+        }
+        .neon-glow {
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.4);
+        }
+        .neon-glow-pink {
+            box-shadow: 0 0 20px rgba(255, 0, 127, 0.4);
+        }
+        .text-glow {
+            text-shadow: 0 0 10px rgba(0, 255, 204, 0.6);
+        }
+        .text-glow-pink {
+            text-shadow: 0 0 10px rgba(255, 0, 127, 0.6);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div id="app" class="w-full max-w-5xl mx-auto flex flex-col items-center">
+        
+        <!-- Header / Logo -->
+        <header class="mb-6 text-center">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-arcade-accent via-arcade-pink to-arcade-purple text-glow tracking-wider">
+                NEON BREAKOUT
+            </h1>
+            <p class="text-xs md:text-sm text-gray-400 mt-1">실시간 랭킹 아케이드 벽돌깨기</p>
+        </header>
+
+        <!-- Login Screen -->
+        <div id="login-screen" class="w-full max-w-md bg-arcade-800/80 backdrop-blur-md border border-arcade-700 p-8 rounded-2xl neon-glow flex flex-col items-center shadow-2xl">
+            <div class="w-16 h-16 bg-gradient-to-tr from-arcade-pink to-arcade-accent rounded-full flex items-center justify-center mb-6 text-2xl font-bold shadow-lg">
+                🕹️
+            </div>
+            <h2 class="text-2xl font-bold mb-2 text-white">플레이어 등록</h2>
+            <p class="text-sm text-gray-400 mb-6 text-center">랭킹에 등록할 닉네임을 입력하세요</p>
+            
+            <form id="login-form" class="w-full flex flex-col gap-4">
+                <input type="text" id="username-input" placeholder="닉네임 (2~10자)" required minlength="2" maxlength="10"
+                    class="w-full px-4 py-3 bg-arcade-900 border border-arcade-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-arcade-accent transition-all text-center font-semibold text-lg">
+                <button type="submit" 
+                    class="w-full py-3 bg-gradient-to-r from-arcade-accent to-arcade-purple text-arcade-900 font-extrabold rounded-xl shadow-lg hover:opacity-90 active:scale-95 transition-all">
+                    게임 시작
+                </button>
+            </form>
+        </div>
+
+        <!-- Game & Leaderboard Dashboard (Hidden initially) -->
+        <div id="game-dashboard" class="hidden w-full grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            
+            <!-- Left/Main: Game Area -->
+            <div class="lg:col-span-2 flex flex-col items-center bg-arcade-800/80 backdrop-blur-md border border-arcade-700 p-4 rounded-2xl neon-glow relative">
+                
+                <!-- Game HUD -->
+                <div class="w-full flex justify-between items-center mb-3 px-2 text-sm md:text-base font-semibold">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">플레이어:</span>
+                        <span id="hud-username" class="text-arcade-accent font-bold"></span>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div>점수: <span id="hud-score" class="text-arcade-pink font-bold">0</span></div>
+                        <div>목숨: <span id="hud-lives" class="text-yellow-400 font-bold">❤️❤️❤️</span></div>
+                    </div>
+                </div>
+
+                <!-- Canvas Container -->
+                <div class="relative w-full aspect-[4/3] bg-black/60 rounded-xl overflow-hidden border border-arcade-700 flex items-center justify-center">
+                    <canvas id="game-canvas" class="w-full h-full block"></canvas>
+                    
+                    <!-- Overlay Message / Start Prompt -->
+                    <div id="canvas-overlay" class="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4 transition-all">
+                        <h3 id="overlay-title" class="text-2xl md:text-3xl font-extrabold text-arcade-accent text-glow">READY?</h3>
+                        <p id="overlay-desc" class="text-sm text-gray-300">화살표 키(←, →) 또는 터치로 패를 조작하세요</p>
+                        <button id="action-btn" class="px-6 py-3 bg-arcade-accent text-arcade-900 font-extrabold rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all">
+                            게임 시작
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Mobile Touch Controls -->
+                <div class="w-full flex justify-between mt-4 lg:hidden gap-4">
+                    <button id="btn-left" class="flex-1 py-4 bg-arcade-700 active:bg-arcade-accent active:text-arcade-900 rounded-xl font-bold text-lg transition-colors">◀ 왼쪽</button>
+                    <button id="btn-right" class="flex-1 py-4 bg-arcade-700 active:bg-arcade-accent active:text-arcade-900 rounded-xl font-bold text-lg transition-colors">오른쪽 ▶</button>
+                </div>
+            </div>
+
+            <!-- Right Sidebar: Real-time Leaderboard -->
+            <div class="bg-arcade-800/80 backdrop-blur-md border border-arcade-700 p-6 rounded-2xl neon-glow-pink flex flex-col h-full">
+                <div class="flex items-center justify-between mb-4 border-b border-arcade-700 pb-3">
+                    <h3 class="text-xl font-extrabold text-arcade-pink text-glow-pink flex items-center gap-2">
+                        🏆 TOP 10 랭킹
+                    </h3>
+                    <span class="text-xs bg-arcade-pink/20 text-arcade-pink px-2 py-1 rounded-full animate-pulse">실시간</span>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto max-h-[400px] pr-1 space-y-2" id="leaderboard-list">
+                    <!-- Leaderboard items injected dynamically -->
+                    <div class="text-center text-gray-500 py-8 text-sm">랭킹 로딩 중...</div>
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-arcade-700 flex justify-between items-center text-xs text-gray-400">
+                    <button id="logout-btn" class="hover:text-white transition-colors underline">닉네임 변경</button>
+                    <span>벽돌깨기 아케이드 v1.0</span>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Custom Modal for Alerts/Messages -->
+    <div id="custom-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-arcade-800 border border-arcade-700 p-6 rounded-2xl max-w-sm w-full text-center neon-glow">
+            <h4 id="modal-title" class="text-xl font-bold mb-2 text-arcade-accent">알림</h4>
+            <p id="modal-message" class="text-gray-300 text-sm mb-6">메시지 내용</p>
+            <button id="modal-close-btn" class="w-full py-2.5 bg-arcade-accent text-arcade-900 font-extrabold rounded-xl hover:opacity-90 transition-all">확인</button>
+        </div>
+    </div>
+
+    <!-- Firebase SDK Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Configuration placeholder and environment integration
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'brick-breaker-arcade-default';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+           apiKey: "AIzaSyBogOSFTmnQA1EKANqIQ4ximZMrVt6aphg",
+  authDomain: "bkbl-a0608.firebaseapp.com",
+  databaseURL: "https://bkbl-a0608-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "bkbl-a0608",
+  storageBucket: "bkbl-a0608.firebasestorage.app",
+  messagingSenderId: "1065300737357",
+  appId: "1:1065300737357:web:71df41118967fabe580b04",
+  measurementId: "G-454RYSZTZT"
+        };
+
+        let db = null;
+        let auth = null;
+        let currentUser = null;
+        let isFirebaseConnected = false;
+
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            
+            const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+            if (token) {
+                signInWithCustomToken(auth, token)
+                    .then(res => { currentUser = res.user; isFirebaseConnected = true; initLeaderboardListener(); })
+                    .catch(() => signInAnonymously(auth).then(res => { currentUser = res.user; isFirebaseConnected = true; initLeaderboardListener(); }));
+            } else {
+                signInAnonymously(auth)
+                    .then(res => { currentUser = res.user; isFirebaseConnected = true; initLeaderboardListener(); })
+                    .catch(err => console.warn("Firebase auth warning:", err));
+            }
+        } catch (e) {
+            console.warn("Firebase initialization skipped or failed. Running in offline/local mode.", e);
+            renderOfflineLeaderboard();
+        }
+
+        // DOM Elements
+        const loginScreen = document.getElementById('login-screen');
+        const gameDashboard = document.getElementById('game-dashboard');
+        const loginForm = document.getElementById('login-form');
+        const usernameInput = document.getElementById('username-input');
+        const hudUsername = document.getElementById('hud-username');
+        const hudScore = document.getElementById('hud-score');
+        const hudLives = document.getElementById('hud-lives');
+        const canvasOverlay = document.getElementById('canvas-overlay');
+        const overlayTitle = document.getElementById('overlay-title');
+        const overlayDesc = document.getElementById('overlay-desc');
+        const actionBtn = document.getElementById('action-btn');
+        const leaderboardList = document.getElementById('leaderboard-list');
+        const logoutBtn = document.getElementById('logout-btn');
+        const customModal = document.getElementById('custom-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalMessage = document.getElementById('modal-message');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+
+        let playerName = localStorage.getItem('arcade_player_name') || '';
+        let localLeaderboardData = JSON.parse(localStorage.getItem('arcade_local_lb') || '[]');
+
+        if (playerName) {
+            usernameInput.value = playerName;
+        }
+
+        function showModal(title, msg) {
+            modalTitle.textContent = title;
+            modalMessage.textContent = msg;
+            customModal.classList.remove('hidden');
+            customModal.classList.add('flex');
+        }
+
+        modalCloseBtn.addEventListener('click', () => {
+            customModal.classList.remove('flex');
+            customModal.classList.add('hidden');
+        });
+
+        // Login handling
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = usernameInput.value.trim();
+            if (name.length < 2) {
+                showModal('알림', '닉네임은 2자 이상 입력해주세요.');
+                return;
+            }
+            playerName = name;
+            localStorage.setItem('arcade_player_name', playerName);
+            hudUsername.textContent = playerName;
+            loginScreen.classList.add('hidden');
+            gameDashboard.classList.remove('hidden');
+            resizeCanvas();
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            gameDashboard.classList.add('hidden');
+            loginScreen.classList.remove('hidden');
+            resetGame();
+        });
+
+        function initLeaderboardListener() {
+            if (!db || !isFirebaseConnected) {
+                renderOfflineLeaderboard();
+                return;
+            }
+            try {
+                const q = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+                onSnapshot(q, (snapshot) => {
+                    const scores = [];
+                    snapshot.forEach(doc => {
+                        scores.push(doc.data());
+                    });
+                    // Sort by score descending and take top 10 (Rule 2 friendly: client-side processing)
+                    scores.sort((a, b) => b.score - a.score);
+                    const top10 = scores.slice(0, 10);
+                    renderLeaderboardUI(top10);
+                }, (error) => {
+                    console.error("Leaderboard snapshot error:", error);
+                    renderOfflineLeaderboard();
+                });
+            } catch (err) {
+                console.error("Leaderboard init error:", err);
+                renderOfflineLeaderboard();
+            }
+        }
+
+        function renderOfflineLeaderboard() {
+            localLeaderboardData.sort((a, b) => b.score - a.score);
+            renderLeaderboardUI(localLeaderboardData.slice(0, 10));
+        }
+
+        function renderLeaderboardUI(data) {
+            if (!data || data.length === 0) {
+                leaderboardList.innerHTML = `<div class="text-center text-gray-500 py-8 text-sm">등록된 순위가 없습니다. 첫 기록을 세워보세요!</div>`;
+                return;
+            }
+            leaderboardList.innerHTML = data.map((item, index) => {
+                const medals = ['👑', '🥈', '🥉'];
+                const rankBadge = index < 3 ? medals[index] : `<span class="w-6 text-center text-gray-400">${index + 1}</span>`;
+                const isCurrent = item.name === playerName ? 'bg-arcade-accent/10 border-arcade-accent/40' : 'bg-arcade-900/50 border-arcade-700/50';
+                return `
+                    <div class="flex items-center justify-between p-3 rounded-xl border ${isCurrent} transition-all">
+                        <div class="flex items-center gap-3">
+                            <span class="font-bold text-lg">${rankBadge}</span>
+                            <span class="font-semibold text-white truncate max-w-[100px] md:max-w-[120px]">${escapeHtml(item.name)}</span>
+                        </div>
+                        <span class="font-extrabold text-arcade-accent">${item.score.toLocaleString()}점</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+
+        async function saveScoreToFirebase(finalScore) {
+            if (!playerName) return;
+            const record = { name: playerName, score: finalScore, timestamp: Date.now() };
+            
+            // Save locally always
+            localLeaderboardData.push(record);
+            localStorage.setItem('arcade_local_lb', JSON.stringify(localLeaderboardData));
+            renderOfflineLeaderboard();
+
+            if (db && isFirebaseConnected) {
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard'), record);
+                } catch (e) {
+                    console.error("Error saving score to Firebase:", e);
+                }
+            }
+        }
+
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Virtual Canvas Resolution
+        const V_WIDTH = 800;
+        const V_HEIGHT = 600;
+
+        function resizeCanvas() {
+            canvas.width = V_WIDTH;
+            canvas.height = V_HEIGHT;
+        }
+
+        // Game States
+        let gameState = 'READY'; // READY, PLAYING, GAMEOVER, VICTORY
+        let score = 0;
+        let lives = 3;
+
+        // Paddle
+        const paddle = {
+            width: 130,
+            height: 16,
+            x: V_WIDTH / 2 - 65,
+            y: V_HEIGHT - 40,
+            dx: 10,
+            color: '#00ffcc'
+        };
+
+        // Ball
+        const ball = {
+            x: V_WIDTH / 2,
+            y: V_HEIGHT - 60,
+            radius: 8,
+            speed: 5,
+            dx: 4,
+            dy: -4,
+            color: '#ff007f'
+        };
+
+        // Bricks Configuration
+        const brickRowCount = 5;
+        const brickColumnCount = 8;
+        const brickWidth = 85;
+        const brickHeight = 25;
+        const brickPadding = 12;
+        const brickOffsetTop = 60;
+        const brickOffsetLeft = (V_WIDTH - (brickColumnCount * (brickWidth + brickPadding) - brickPadding)) / 2;
+
+        let bricks = [];
+        const brickColors = ['#ff007f', '#ff7700', '#ffcc00', '#00ffcc', '#9d00ff'];
+
+        function initBricks() {
+            bricks = [];
+            for (let c = 0; c < brickColumnCount; c++) {
+                bricks[c] = [];
+                for (let r = 0; r < brickRowCount; r++) {
+                    bricks[c][r] = {
+                        x: 0,
+                        y: 0,
+                        status: 1,
+                        color: brickColors[r],
+                        points: (brickRowCount - r) * 10
+                    };
+                }
+            }
+        }
+
+        // Controls
+        let rightPressed = false;
+        let leftPressed = false;
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') rightPressed = true;
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') leftPressed = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') rightPressed = false;
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') leftPressed = false;
+        });
+
+        // Touch buttons for mobile
+        const btnLeft = document.getElementById('btn-left');
+        const btnRight = document.getElementById('btn-right');
+
+        btnLeft.addEventListener('touchstart', () => { leftPressed = true; });
+        btnLeft.addEventListener('touchend', () => { leftPressed = false; });
+        btnLeft.addEventListener('mousedown', () => { leftPressed = true; });
+        btnLeft.addEventListener('mouseup', () => { leftPressed = false; });
+
+        btnRight.addEventListener('touchstart', () => { rightPressed = true; });
+        btnRight.addEventListener('touchend', () => { rightPressed = false; });
+        btnRight.addEventListener('mousedown', () => { rightPressed = true; });
+        btnRight.addEventListener('mouseup', () => { rightPressed = false; });
+
+        // Web Audio API Sound Synthesizer (No external assets required)
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'paddle') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(500, now + 0.1);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'brick') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(500, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.12);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+                osc.start(now);
+                osc.stop(now + 0.12);
+            } else if (type === 'lose') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.exponentialRampToValueAtTime(80, now + 0.3);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } else if (type === 'win') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.setValueAtTime(600, now + 0.1);
+                osc.frequency.setValueAtTime(800, now + 0.2);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                osc.start(now);
+                osc.stop(now + 0.4);
+            }
+        }
+
+        function collisionDetection() {
+            for (let c = 0; c < brickColumnCount; c++) {
+                for (let r = 0; r < brickRowCount; r++) {
+                    let b = bricks[c][r];
+                    if (b.status === 1) {
+                        if (
+                            ball.x > b.x &&
+                            ball.x < b.x + brickWidth &&
+                            ball.y > b.y &&
+                            ball.y < b.y + brickHeight
+                        ) {
+                            ball.dy = -ball.dy;
+                            b.status = 0;
+                            score += b.points;
+                            hudScore.textContent = score;
+                            playSound('brick');
+
+                            // Check Victory
+                            if (checkVictory()) {
+                                gameState = 'VICTORY';
+                                playSound('win');
+                                saveScoreToFirebase(score);
+                                showOverlay('VICTORY! 🎉', `축하합니다! 총 점수: ${score}점`, '다시 하기');
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function checkVictory() {
+            for (let c = 0; c < brickColumnCount; c++) {
+                for (let r = 0; r < brickRowCount; r++) {
+                    if (bricks[c][r].status === 1) return false;
+                }
+            }
+            return true;
+        }
+
+        function resetBallAndPaddle() {
+            paddle.x = V_WIDTH / 2 - paddle.width / 2;
+            ball.x = V_WIDTH / 2;
+            ball.y = V_HEIGHT - 60;
+            ball.dx = 4 * (Math.random() > 0.5 ? 1 : -1);
+            ball.dy = -4;
+        }
+
+        function resetGame() {
+            score = 0;
+            lives = 3;
+            hudScore.textContent = score;
+            hudLives.textContent = '❤️❤️❤️';
+            initBricks();
+            resetBallAndPaddle();
+        }
+
+        function showOverlay(title, desc, btnText) {
+            overlayTitle.textContent = title;
+            overlayDesc.textContent = desc;
+            actionBtn.textContent = btnText;
+            canvasOverlay.classList.remove('hidden');
+            canvasOverlay.classList.add('flex');
+        }
+
+        function hideOverlay() {
+            canvasOverlay.classList.remove('flex');
+            canvasOverlay.classList.add('hidden');
+        }
+
+        actionBtn.addEventListener('click', () => {
+            if (gameState === 'GAMEOVER' || gameState === 'VICTORY') {
+                resetGame();
+            }
+            gameState = 'PLAYING';
+            hideOverlay();
+        });
+
+        function drawBall() {
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fillStyle = ball.color;
+            ctx.shadowColor = ball.color;
+            ctx.shadowBlur = 12;
+            ctx.fill();
+            ctx.closePath();
+            ctx.shadowBlur = 0; // reset shadow
+        }
+
+        function drawPaddle() {
+            ctx.beginPath();
+            ctx.roundRect(paddle.x, paddle.y, paddle.width, paddle.height, 8);
+            ctx.fillStyle = paddle.color;
+            ctx.shadowColor = paddle.color;
+            ctx.shadowBlur = 15;
+            ctx.fill();
+            ctx.closePath();
+            ctx.shadowBlur = 0;
+        }
+
+        function drawBricks() {
+            for (let c = 0; c < brickColumnCount; c++) {
+                for (let r = 0; r < brickRowCount; r++) {
+                    if (bricks[c][r].status === 1) {
+                        let brickX = c * (brickWidth + brickPadding) + brickOffsetLeft;
+                        let brickY = r * (brickHeight + brickPadding) + brickOffsetTop;
+                        bricks[c][r].x = brickX;
+                        bricks[c][r].y = brickY;
+
+                        ctx.beginPath();
+                        ctx.roundRect(brickX, brickY, brickWidth, brickHeight, 4);
+                        ctx.fillStyle = bricks[c][r].color;
+                        ctx.shadowColor = bricks[c][r].color;
+                        ctx.shadowBlur = 8;
+                        ctx.fill();
+                        ctx.closePath();
+                        ctx.shadowBlur = 0;
+                    }
+                }
+            }
+        }
+
+        function update() {
+            if (gameState !== 'PLAYING') return;
+
+            // Paddle Movement
+            if (rightPressed && paddle.x < V_WIDTH - paddle.width) {
+                paddle.x += paddle.dx;
+            } else if (leftPressed && paddle.x > 0) {
+                paddle.x -= paddle.dx;
+            }
+
+            // Ball Movement
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+
+            // Wall Collisions (Left / Right)
+            if (ball.x + ball.radius > V_WIDTH || ball.x - ball.radius < 0) {
+                ball.dx = -ball.dx;
+                playSound('paddle');
+            }
+
+            // Wall Collisions (Top)
+            if (ball.y - ball.radius < 0) {
+                ball.dy = -ball.dy;
+                playSound('paddle');
+            }
+
+            // Paddle Collision
+            if (
+                ball.y + ball.radius >= paddle.y &&
+                ball.x >= paddle.x &&
+                ball.x <= paddle.x + paddle.width
+            ) {
+                // Calculate bounce angle based on where it hit the paddle
+                let hitPoint = ball.x - (paddle.x + paddle.width / 2);
+                let normalized = hitPoint / (paddle.width / 2);
+                let bounceAngle = normalized * (Math.PI / 3); // Max 60 deg
+
+                let currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+                ball.dx = currentSpeed * Math.sin(bounceAngle);
+                ball.dy = -currentSpeed * Math.cos(bounceAngle);
+
+                playSound('paddle');
+            }
+
+            // Bottom Collision (Lose Life)
+            if (ball.y + ball.radius > V_HEIGHT) {
+                lives--;
+                playSound('lose');
+                let hearts = '';
+                for (let i = 0; i < lives; i++) hearts += '❤️';
+                hudLives.textContent = hearts;
+
+                if (lives <= 0) {
+                    gameState = 'GAMEOVER';
+                    saveScoreToFirebase(score);
+                    showOverlay('GAME OVER 💀', `최종 점수: ${score}점`, '다시 도전');
+                } else {
+                    resetBallAndPaddle();
+                }
+            }
+
+            collisionDetection();
+        }
+
+        function draw() {
+            // Clear screen with neon dark gradient background
+            ctx.clearRect(0, 0, V_WIDTH, V_HEIGHT);
+
+            // Draw game components
+            drawBricks();
+            drawPaddle();
+            drawBall();
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Initialize game state on load
+        initBricks();
+        resetBallAndPaddle();
+        requestAnimationFrame(gameLoop);
+
+    </script>
+</body>
+</html>
